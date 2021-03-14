@@ -1,16 +1,37 @@
+import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
+import useSWR from "swr";
+
 import EventList from "../../components/events/event-list";
-import { getFilteredEvents } from "../../dummy-data";
+import { getFilteredEvents } from "../../helpers/api-util";
 import ResultTitle from "../../components/events/results-title";
 import ErrorAlert from "../../components/ui/error-alert";
 import Button from "../../components/ui/button";
 
-const EventSlugPage = () => {
+const EventSlugPage = (props) => {
+  const [loadedEvents, setLoadedEvents] = useState();
   const router = useRouter();
 
   const filteredData = router.query.slug;
 
-  if (!filteredData) {
+  const { data, error } = useSWR(
+    "https://projectku-c1efa-default-rtdb.firebaseio.com/events.json"
+  );
+
+  useEffect(() => {
+    if (data) {
+      const events = [];
+      for (const key in data) {
+        events.push({
+          id: key,
+          ...data[key],
+        });
+      }
+      setLoadedEvents(events);
+    }
+  }, [data]);
+
+  if (!loadedEvents) {
     return (
       <>
         <ErrorAlert>
@@ -32,7 +53,8 @@ const EventSlugPage = () => {
     numYear > 2025 ||
     numYear < 2021 ||
     numMonth < 1 ||
-    numMonth > 12
+    numMonth > 12 ||
+    error
   ) {
     return (
       <>
@@ -46,9 +68,15 @@ const EventSlugPage = () => {
     );
   }
 
-  const filteredEvent = getFilteredEvents({ year: numYear, month: numMonth });
+  const filteredEvents = loadedEvents.filter((event) => {
+    const eventDate = new Date(event.date);
+    return (
+      eventDate.getFullYear() === numYear &&
+      eventDate.getMonth() === numMonth - 1
+    );
+  });
 
-  if (!filteredEvent || filteredEvent.length === 0) {
+  if (!filteredEvents || filteredEvents.length === 0) {
     return (
       <>
         <ErrorAlert>
@@ -66,9 +94,46 @@ const EventSlugPage = () => {
   return (
     <>
       <ResultTitle date={dateFilter} />
-      <EventList items={filteredEvent} />
+      <EventList items={filteredEvents} />
     </>
   );
 };
+
+// export const getServerSideProps = async (context) => {
+//   const { params } = context;
+//   const filteredData = params.slug;
+
+//   const filteredYear = filteredData[0];
+//   const filteredMonth = filteredData[1];
+
+//   const numYear = +filteredYear;
+//   const numMonth = +filteredMonth;
+
+//   if (
+//     isNaN(numYear) ||
+//     isNaN(numMonth) ||
+//     numYear > 2025 ||
+//     numYear < 2021 ||
+//     numMonth < 1 ||
+//     numMonth > 12
+//   ) {
+//     return {
+//       props: { hasError: true },
+//       // notFound: true,
+//       // lakukan ini jika ada error page
+//       // redirect: {
+//       //   destination: "/error"
+//       // }
+//     };
+//   }
+
+//   const filteredEvent = await getFilteredEvents({
+//     year: numYear,
+//     month: numMonth,
+//   });
+//   return {
+//     props: { filteredEvent, date: { year: numYear, month: numMonth } },
+//   };
+// };
 
 export default EventSlugPage;
